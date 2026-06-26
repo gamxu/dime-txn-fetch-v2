@@ -16,7 +16,7 @@ import email.message
 import email.utils
 import re
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -187,9 +187,13 @@ def _fetch_from_sender(
     parser_fn,
     label: str,
     subject_filter,
+    since_date: date | None = None,
 ) -> list[dict]:
     rows: list[dict] = []
-    _, data = imap.search(None, f'(FROM "{sender}")')
+    search = f'(FROM "{sender}")'
+    if since_date:
+        search = f'(FROM "{sender}" SINCE "{since_date.strftime("%d-%b-%Y")}")'
+    _, data = imap.search(None, search)
     msg_ids = data[0].split()
     tqdm.write(f"  {label}: {len(msg_ids)} emails found")
 
@@ -213,7 +217,7 @@ def _fetch_from_sender(
     return rows
 
 
-def fetch_gold_transactions() -> pd.DataFrame:
+def fetch_gold_transactions(since_date: date | None = None) -> pd.DataFrame:
     gmail_user = os.environ["GMAIL_USER"]
     gmail_pass = os.environ["GMAIL_APP_PASSWORD"]
 
@@ -225,10 +229,12 @@ def fetch_gold_transactions() -> pd.DataFrame:
         all_rows.extend(_fetch_from_sender(
             imap, _YLG_SENDER, _parse_ylg, "YLG Gold",
             subject_filter=lambda s: "[ YLG GOLD ]" in s and "DIME" in s,
+            since_date=since_date,
         ))
         all_rows.extend(_fetch_from_sender(
             imap, _MTS_SENDER, _parse_mts, "MTS Gold",
             subject_filter=lambda s: "[MTS Gold]" in s and ("สั่งซื้อ" in s or "สั่งขาย" in s),
+            since_date=since_date,
         ))
 
     df = pd.DataFrame(all_rows) if all_rows else pd.DataFrame()

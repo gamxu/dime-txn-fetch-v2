@@ -28,6 +28,12 @@ def _get_client() -> Client:
     return create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
 
 
+def is_table_empty() -> bool:
+    table = os.environ.get("SUPABASE_TABLE", "dime-txn")
+    result = _get_client().table(table).select("order_no", count="exact").limit(1).execute()
+    return result.count == 0
+
+
 def upload_to_supabase(df: pd.DataFrame) -> None:
     table = os.environ.get("SUPABASE_TABLE", "dime-txn")
     client = _get_client()

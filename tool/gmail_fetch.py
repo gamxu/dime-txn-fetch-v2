@@ -16,7 +16,7 @@ import email.utils
 import os
 import re
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from dotenv import load_dotenv
 from tqdm import tqdm
@@ -96,13 +96,17 @@ def list_subjects() -> None:
             tqdm.write(_decode_subject(hdr_msg.get("Subject", "(no subject)")))
 
 
-def fetch_pdfs() -> list[Path]:
+def fetch_pdfs(since_date: date | None = None) -> list[Path]:
     saved: list[Path] = []
+
+    search = SENDER_FILTER
+    if since_date:
+        search = f'(FROM "dime.co.th" SINCE "{since_date.strftime("%d-%b-%Y")}")'
 
     with imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT) as imap:
         imap.login(GMAIL_USER, GMAIL_APP_PASSWORD)
         imap.select("INBOX", readonly=True)
-        _, data = imap.search(None, SENDER_FILTER)
+        _, data = imap.search(None, search)
         msg_ids = data[0].split()
         print(f"Found {len(msg_ids)} emails from dime.co.th")
 

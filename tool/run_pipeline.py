@@ -8,6 +8,7 @@ Usage:
 """
 
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 import pandas as pd
 
@@ -19,7 +20,7 @@ from gmail_gold_fetch import fetch_gold_transactions
 from decrypt_pdfs import decrypt_all
 from extract_transactions import extract_all
 from deduplicate import deduplicate
-from supabase_upload import upload_to_supabase
+from supabase_upload import is_table_empty, upload_to_supabase
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RAW_CSV = PROJECT_ROOT / "output" / "trades_raw.csv"
@@ -33,14 +34,24 @@ def main():
 
     if not skip_fetch:
         print("=" * 50)
+        print("Checking Supabase table...")
+        print("=" * 50)
+        if is_table_empty():
+            since_date = None
+            print("Table is empty — fetching all data from the beginning.")
+        else:
+            since_date = date.today() - timedelta(days=7)
+            print(f"Table has data — fetching last 7 days (since {since_date}).")
+
+        print("\n" + "=" * 50)
         print("Step 1: Fetching PDFs from Gmail")
         print("=" * 50)
-        fetch_pdfs()
+        fetch_pdfs(since_date=since_date)
 
         print("\n" + "=" * 50)
         print("Step 1b: Fetching gold transactions from Gmail")
         print("=" * 50)
-        df_gold = fetch_gold_transactions()
+        df_gold = fetch_gold_transactions(since_date=since_date)
         if not df_gold.empty:
             GOLD_CSV.parent.mkdir(parents=True, exist_ok=True)
             df_gold.to_csv(GOLD_CSV, index=False, encoding="utf-8-sig")
