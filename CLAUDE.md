@@ -34,12 +34,13 @@ cp .env.example .env
 
 ```
 Gmail (IMAP)
-  ↓  Step 1:  gmail_fetch.py         → inbox/raw/            (password-locked PDFs from Dime)
-  ↓  Step 1b: gmail_gold_fetch.py    → output/gold_raw.csv   (gold txns from YLG + MTS email bodies)
-  ↓  Step 2:  decrypt_pdfs.py        → inbox/decrypted/      (unlocked PDFs)
-  ↓  Step 3:  extract_transactions.py → output/trades_raw.csv (stock/ETF + mutual fund PDFs + gold rows)
-  ↓  Step 4:  deduplicate.py         → output/trades.csv     (dedup by order_no+side+symbol)
-  ↓  Step 5:  supabase_upload.py     → Supabase              (upsert into dime-txn table)
+  ↓  Step 1:   gmail_fetch.py          → inbox/raw/            (password-locked PDFs from Dime)
+  ↓  Step 1b:  gmail_gold_fetch.py     → output/gold_raw.csv   (gold txns from YLG + MTS email bodies)
+  ↓  Step 2:   decrypt_pdfs.py         → inbox/decrypted/      (unlocked PDFs)
+  ↓  Step 3:   extract_transactions.py → output/trades_raw.csv (stock/ETF + mutual fund PDFs + gold rows)
+  ↓  Step 4:   deduplicate.py          → output/trades.csv     (dedup by order_no+side+symbol)
+  ↓  Step 4.5: forex_convert.py        → output/trades.csv     (fill missing USD/THB via Yahoo Finance)
+  ↓  Step 5:   supabase_upload.py      → Supabase              (upsert into dime-txn table)
 ```
 
 **Full run:**
@@ -61,6 +62,8 @@ python tool/decrypt_pdfs.py                     # Step 2 only
 python tool/extract_transactions.py             # Step 3 only (preview)
 python tool/extract_transactions.py --csv       # Step 3 only (save CSV)
 python tool/deduplicate.py                      # Step 4 only
+python tool/forex_convert.py                    # Step 4.5 only (fill missing USD/THB)
+python tool/forex_convert.py --dry-run          # Step 4.5 dry run (preview changes)
 python tool/supabase_upload.py                  # Step 5 only
 python tool/supabase_upload.py --dry-run        # Step 5 dry run (no upload)
 ```
@@ -76,8 +79,9 @@ tool/
   gmail_gold_fetch.py     # Step 1b: Parse YLG + MTS gold transaction emails
   decrypt_pdfs.py         # Step 2:  pikepdf decryption
   extract_transactions.py # Step 3:  pdfplumber + regex (stock/ETF and mutual fund PDFs)
-  deduplicate.py          # Step 4:  dedup by (order_no, side, symbol)
-  supabase_upload.py      # Step 5:  Supabase upsert
+  deduplicate.py          # Step 4:   dedup by (order_no, side, symbol)
+  forex_convert.py        # Step 4.5: fill missing USD/THB using Yahoo Finance USDTHB=X
+  supabase_upload.py      # Step 5:   Supabase upsert
 
 inbox/raw/                # Git-ignored — downloaded encrypted PDFs
 inbox/decrypted/          # Git-ignored — decrypted PDFs

@@ -20,6 +20,7 @@ from gmail_gold_fetch import fetch_gold_transactions
 from decrypt_pdfs import decrypt_all
 from extract_transactions import extract_all
 from deduplicate import deduplicate
+from forex_convert import forex_convert
 from supabase_upload import is_table_empty, upload_to_supabase
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -87,6 +88,12 @@ def main():
     print("Step 4: Deduplicating")
     print("=" * 50)
     df_final = deduplicate(df_raw)
+
+    print("\n" + "=" * 50)
+    print("Step 4.5: Forex conversion (fill missing USD/THB values)")
+    print("=" * 50)
+    df_final = forex_convert(df_final)
+
     df_final.to_csv(FINAL_CSV, index=False, encoding="utf-8-sig")
     print(f"Final output -> {FINAL_CSV}  ({len(df_final)} trades)")
 
