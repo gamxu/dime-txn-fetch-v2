@@ -54,7 +54,10 @@ _MF_ROW_RE = re.compile(
     r"(?P<gross_thb>" + _NUM + r")\s+"
     r"(?P<fee_thb>" + _NUM + r")",
 )
-_MF_DATE_RE = re.compile(r"(\d{2}/\d{2}/\d{4}) \d{2}/\d{2}/\d{4} Effective Date")
+
+# --- Card section (both PDF types) ---
+_ACCOUNT_NO_RE = re.compile(r"Account No\.\s+(\d+)")
+_EFFECTIVE_DATE_RE = re.compile(r"(\d{2}/\d{2}/\d{4})\s+\d{2}/\d{2}/\d{4}\s+Effective Date")
 
 
 def _clean_num(s: str) -> float:
@@ -78,33 +81,45 @@ def _normalise_side(raw: str) -> str:
 
 
 def parse_pdf(pdf_path: Path) -> list[dict]:
+    full_text = ""
     rows: list[dict] = []
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages:
             text = page.extract_text(x_tolerance=3, y_tolerance=3) or ""
             blob = re.sub(r"[ \t]+", " ", text)
             flat = blob.replace("\n", " ")
+            full_text += flat + " "
             for m in _ROW_RE.finditer(flat):
                 rows.append({
-                    "order_no":  m.group("order_no"),
-                    "date":      m.group("date"),
-                    "side":      _normalise_side(m.group("side")),
-                    "symbol":    m.group("symbol").upper(),
-                    "market":    m.group("market"),
-                    "qty":       _clean_num(m.group("qty")),
-                    "qty_unit":  "SHARES",
-                    "price":     _clean_num(m.group("price")),
-                    "currency":  m.group("currency"),
-                    "gross_usd": _clean_num(m.group("gross_usd")),
-                    "fee_usd":   _clean_num(m.group("fee_usd")),
-                    "wht_usd":   _clean_num(m.group("wht_usd")),
-                    "net_usd":   _clean_num(m.group("net_usd")),
-                    "gross_thb": _clean_num(m.group("gross_thb")),
-                    "fee_thb":   _clean_num(m.group("fee_thb")),
-                    "wht_thb":   _clean_num(m.group("wht_thb")),
-                    "net_thb":   _clean_num(m.group("net_thb")),
-                    "source":    pdf_path.name,
+                    "order_no":        m.group("order_no"),
+                    "settlement_date": m.group("date"),
+                    "side":            _normalise_side(m.group("side")),
+                    "symbol":        m.group("symbol").upper(),
+                    "market":        m.group("market"),
+                    "qty":           _clean_num(m.group("qty")),
+                    "qty_unit":      "SHARES",
+                    "price":         _clean_num(m.group("price")),
+                    "currency":      m.group("currency"),
+                    "gross_usd":     _clean_num(m.group("gross_usd")),
+                    "fee_usd":       _clean_num(m.group("fee_usd")),
+                    "wht_usd":       _clean_num(m.group("wht_usd")),
+                    "net_usd":       _clean_num(m.group("net_usd")),
+                    "gross_thb":     _clean_num(m.group("gross_thb")),
+                    "fee_thb":       _clean_num(m.group("fee_thb")),
+                    "wht_thb":       _clean_num(m.group("wht_thb")),
+                    "net_thb":       _clean_num(m.group("net_thb")),
+                    "source":        pdf_path.name,
                 })
+
+    acct_m = _ACCOUNT_NO_RE.search(full_text)
+    eff_m = _EFFECTIVE_DATE_RE.search(full_text)
+    account_no = acct_m.group(1) if acct_m else ""
+    effective_date = eff_m.group(1) if eff_m else ""
+
+    for row in rows:
+        row["account_no"] = account_no
+        row["effective_date"] = effective_date
+
     return rows
 
 
@@ -116,32 +131,36 @@ def parse_mutual_fund_pdf(pdf_path: Path) -> list[dict]:
             blob = re.sub(r"[ \t]+", " ", text)
             full_text += blob.replace("\n", " ") + " "
 
-    date_m = _MF_DATE_RE.search(full_text)
-    date = date_m.group(1) if date_m else ""
+    acct_m = _ACCOUNT_NO_RE.search(full_text)
+    eff_m = _EFFECTIVE_DATE_RE.search(full_text)
+    account_no = acct_m.group(1) if acct_m else ""
+    effective_date = eff_m.group(1) if eff_m else ""
 
     rows: list[dict] = []
     for m in _MF_ROW_RE.finditer(full_text):
         gross_thb = _clean_num(m.group("gross_thb"))
         fee_thb = _clean_num(m.group("fee_thb"))
         rows.append({
-            "order_no":  m.group("order_no"),
-            "date":      date,
-            "side":      _normalise_side(m.group("txtype")),
-            "symbol":    m.group("symbol"),
-            "market":    "MUTUALFUND",
-            "qty":       _clean_num(m.group("qty")),
-            "qty_unit":  "UNITS",
-            "price":     _clean_num(m.group("price")),
-            "currency":  "THB",
-            "gross_usd": 0.0,
-            "fee_usd":   0.0,
-            "wht_usd":   0.0,
-            "net_usd":   0.0,
-            "gross_thb": gross_thb,
-            "fee_thb":   fee_thb,
-            "wht_thb":   0.0,
-            "net_thb":   gross_thb - fee_thb,
-            "source":    pdf_path.name,
+            "order_no":        m.group("order_no"),
+            "account_no":      account_no,
+            "settlement_date": effective_date,
+            "effective_date":  effective_date,
+            "side":          _normalise_side(m.group("txtype")),
+            "symbol":        m.group("symbol"),
+            "market":        "MUTUALFUND",
+            "qty":           _clean_num(m.group("qty")),
+            "qty_unit":      "UNITS",
+            "price":         _clean_num(m.group("price")),
+            "currency":      "THB",
+            "gross_usd":     0.0,
+            "fee_usd":       0.0,
+            "wht_usd":       0.0,
+            "net_usd":       0.0,
+            "gross_thb":     gross_thb,
+            "fee_thb":       fee_thb,
+            "wht_thb":       0.0,
+            "net_thb":       gross_thb - fee_thb,
+            "source":        pdf_path.name,
         })
     return rows
 

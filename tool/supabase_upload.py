@@ -41,7 +41,9 @@ def upload_to_supabase(df: pd.DataFrame) -> None:
     df = df.copy()
     df.drop(columns=["source"], errors="ignore", inplace=True)
     # Convert DD/MM/YYYY -> YYYY-MM-DD for proper SQL date type
-    df["date"] = pd.to_datetime(df["date"], format="%d/%m/%Y").dt.strftime("%Y-%m-%d")
+    df["settlement_date"] = pd.to_datetime(df["settlement_date"], format="%d/%m/%Y").dt.strftime("%Y-%m-%d")
+    if "effective_date" in df.columns:
+        df["effective_date"] = pd.to_datetime(df["effective_date"], format="%d/%m/%Y").dt.strftime("%Y-%m-%d")
 
     # NaN -> None so Supabase stores SQL NULL instead of the string "nan"
     records = df.where(pd.notna(df), None).to_dict(orient="records")

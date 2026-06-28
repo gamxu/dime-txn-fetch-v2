@@ -120,25 +120,28 @@ def _parse_ylg(body: str, subject: str) -> dict | None:
     side = "SELL" if "สั่งขาย" in subject else "BUY"
     gross_usd = _clean_num(amount_m.group(1))
 
+    txn_date = date_m.group(1)
     return {
-        "order_no":  order_m.group(1),
-        "date":      date_m.group(1),
-        "side":      side,
-        "symbol":    symbol_m.group(1),
-        "market":    "YLGGOLD",
-        "qty":       _clean_num(qty_m.group(1)),
-        "qty_unit":  "OZ",
-        "price":     _clean_num(price_m.group(1)),
-        "currency":  "USD",
-        "gross_usd": gross_usd,
-        "fee_usd":   0.0,
-        "wht_usd":   0.0,
-        "net_usd":   gross_usd,
-        "gross_thb": 0.0,
-        "fee_thb":   0.0,
-        "wht_thb":   0.0,
-        "net_thb":   0.0,
-        "source":    "ylg_email",
+        "order_no":        order_m.group(1),
+        "account_no":      "80000079356",
+        "settlement_date": txn_date,
+        "effective_date":  txn_date,
+        "side":          side,
+        "symbol":        symbol_m.group(1),
+        "market":        "YLGGOLD",
+        "qty":           _clean_num(qty_m.group(1)),
+        "qty_unit":      "OZ",
+        "price":         _clean_num(price_m.group(1)),
+        "currency":      "USD",
+        "gross_usd":     gross_usd,
+        "fee_usd":       0.0,
+        "wht_usd":       0.0,
+        "net_usd":       gross_usd,
+        "gross_thb":     0.0,
+        "fee_thb":       0.0,
+        "wht_thb":       0.0,
+        "net_thb":       0.0,
+        "source":        "ylg_email",
     }
 
 
@@ -157,25 +160,28 @@ def _parse_mts(body: str, subject: str) -> dict | None:
     side = "SELL" if "สั่งขาย" in subject else "BUY"
     gross_usd = _clean_num(row_m.group(4))
 
+    txn_date = _iso_to_dmy(date_m.group(1))
     return {
-        "order_no":  order_m.group(1),
-        "date":      _iso_to_dmy(date_m.group(1)),
-        "side":      side,
-        "symbol":    row_m.group(1),
-        "market":    "MTSGOLD",
-        "qty":       _clean_num(row_m.group(2)),
-        "qty_unit":  "OZ",
-        "price":     _clean_num(row_m.group(3)),
-        "currency":  "USD",
-        "gross_usd": gross_usd,
-        "fee_usd":   0.0,
-        "wht_usd":   0.0,
-        "net_usd":   gross_usd,
-        "gross_thb": 0.0,
-        "fee_thb":   0.0,
-        "wht_thb":   0.0,
-        "net_thb":   0.0,
-        "source":    "mts_email",
+        "order_no":        order_m.group(1),
+        "account_no":      "80000079356",
+        "settlement_date": txn_date,
+        "effective_date":  txn_date,
+        "side":          side,
+        "symbol":        row_m.group(1),
+        "market":        "MTSGOLD",
+        "qty":           _clean_num(row_m.group(2)),
+        "qty_unit":      "OZ",
+        "price":         _clean_num(row_m.group(3)),
+        "currency":      "USD",
+        "gross_usd":     gross_usd,
+        "fee_usd":       0.0,
+        "wht_usd":       0.0,
+        "net_usd":       gross_usd,
+        "gross_thb":     0.0,
+        "fee_thb":       0.0,
+        "wht_thb":       0.0,
+        "net_thb":       0.0,
+        "source":        "mts_email",
     }
 
 

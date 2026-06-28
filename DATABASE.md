@@ -10,28 +10,41 @@ Supabase table storing all trade transactions from three sources: Dime stock/ETF
 
 ```sql
 create table "dime-txn" (
-  order_no   text,
-  date       date,
-  side       text,
-  symbol     text,
-  market     text,
-  qty        numeric,
-  qty_unit   text,
-  price      numeric,
-  currency   text,
-  gross_usd  numeric,
-  fee_usd    numeric,
-  wht_usd    numeric,
-  net_usd    numeric,
-  gross_thb  numeric,
-  fee_thb    numeric,
-  wht_thb    numeric,
-  net_thb    numeric,
+  order_no         text,
+  account_no       text,
+  settlement_date  date,
+  effective_date   date,
+  side             text,
+  symbol           text,
+  market           text,
+  qty              numeric,
+  qty_unit         text,
+  price            numeric,
+  currency         text,
+  gross_usd        numeric,
+  fee_usd          numeric,
+  wht_usd          numeric,
+  net_usd          numeric,
+  gross_thb        numeric,
+  fee_thb          numeric,
+  wht_thb          numeric,
+  net_thb          numeric,
   constraint "dime-txn_pkey" unique (order_no, side, symbol)
 );
 ```
 
 **Primary key / deduplication key:** `(order_no, side, symbol)`
+
+### Migration (existing table)
+
+```sql
+alter table "dime-txn"
+  rename column date to settlement_date;
+
+alter table "dime-txn"
+  add column account_no      text,
+  add column effective_date  date;
+```
 
 ---
 
@@ -40,7 +53,9 @@ create table "dime-txn" (
 | Column | Type | Nullable | Description |
 |--------|------|----------|-------------|
 | `order_no` | text | No | Order ID from the source document or email |
-| `date` | date | No | Settlement date in `YYYY-MM-DD` format |
+| `account_no` | text | Yes | Dime account number the transaction belongs to — see [Account Numbers](#account-numbers) |
+| `settlement_date` | date | No | Settlement date in `YYYY-MM-DD` format |
+| `effective_date` | date | Yes | Effective / order date in `YYYY-MM-DD` format — the date the order was placed (always ≤ `settlement_date`) |
 | `side` | text | No | Transaction type — see [Transaction Types](#transaction-types) |
 | `symbol` | text | No | Ticker symbol, mutual fund code, or gold product code |
 | `market` | text | No | Exchange or data source identifier — see [Market Values](#market-values) |
@@ -56,6 +71,18 @@ create table "dime-txn" (
 | `fee_thb` | numeric | No | Broker/commission fee in THB (0 if source is USD-only) |
 | `wht_thb` | numeric | No | Withholding tax in THB (0 if source is USD-only) |
 | `net_thb` | numeric | No | Net amount in THB after fees and WHT (0 if source is USD-only) |
+
+---
+
+## Account Numbers (`account_no`)
+
+| `account_no` | Account | Asset class |
+|--------------|---------|-------------|
+| `80000079356` | Main offshore account | Stock / ETF, Gold |
+| `101686963578743` | Main Thailand-based account | Mutual Fund |
+| `80002096763` | Secondary offshore account | Stock / ETF |
+
+For gold transactions the account number is always `80000079356` (hardcoded — gold emails do not carry account info).
 
 ---
 
@@ -115,6 +142,17 @@ Different sources only carry amounts in one currency — the other currency fiel
 
 ---
 
+## Date Fields by Source
+
+| `market` | `settlement_date` | `effective_date` |
+|----------|-------------------|------------------|
+| Exchange code (stock/ETF) | Settlement date from the transaction row (T+2) | Order date from the PDF card header |
+| `MUTUALFUND` | Same as `effective_date` (PDF only has one date) | Effective date from the PDF card header |
+| `YLGGOLD` | Transaction date from the email body | Same as `settlement_date` |
+| `MTSGOLD` | Transaction date from the email body | Same as `settlement_date` |
+
+---
+
 ## Key Relationships & Constraints
 
 - **Unique constraint:** `(order_no, side, symbol)` — the pipeline upserts on this key, so re-running never creates duplicates.
@@ -132,7 +170,9 @@ Different sources only carry amounts in one currency — the other currency fiel
 | Show only gold trades | `market IN ('YLGGOLD', 'MTSGOLD')` |
 | Show only buys | `side = 'BUY' OR side = 'SUBSCRIB' OR side = 'SWITIN' OR side = 'EXCALL'` |
 | Show only sells | `side = 'SELL' OR side = 'REDEMP' OR side = 'SWITOUT' OR side = 'EXPUT'` |
-| Date range | `date >= '2024-01-01' AND date <= '2024-12-31'` |
+| Settlement date range | `settlement_date >= '2024-01-01' AND settlement_date <= '2024-12-31'` |
+| Effective date range | `effective_date >= '2024-01-01' AND effective_date <= '2024-12-31'` |
+| By account | `account_no = '80000079356'` |
 | Single symbol | `symbol = 'AAPL'` |
 
 ---
@@ -141,19 +181,19 @@ Different sources only carry amounts in one currency — the other currency fiel
 
 ### Stock / ETF (USD)
 
-| order_no | date | side | symbol | market | qty | qty_unit | price | currency | gross_usd | fee_usd | wht_usd | net_usd | gross_thb | fee_thb | wht_thb | net_thb |
-|----------|------|------|--------|--------|-----|----------|-------|----------|-----------|---------|---------|---------|-----------|---------|---------|---------|
-| ORD-001 | 2024-03-15 | BUY | AAPL | XNAS | 10 | SHARES | 172.50 | USD | 1725.00 | 1.99 | 0 | 1726.99 | 0 | 0 | 0 | 0 |
-| ORD-002 | 2024-03-20 | SELL | MSFT | XNAS | 5 | SHARES | 415.00 | USD | 2075.00 | 1.99 | 0 | 2073.01 | 0 | 0 | 0 | 0 |
+| order_no | account_no | settlement_date | effective_date | side | symbol | market | qty | qty_unit | price | currency | gross_usd | fee_usd | wht_usd | net_usd | gross_thb | fee_thb | wht_thb | net_thb |
+|----------|------------|-----------------|----------------|------|--------|--------|-----|----------|-------|----------|-----------|---------|---------|---------|-----------|---------|---------|---------|
+| ORD-001 | 80000079356 | 2024-03-15 | 2024-03-13 | BUY | AAPL | XNAS | 10 | SHARES | 172.50 | USD | 1725.00 | 1.99 | 0 | 1726.99 | 0 | 0 | 0 | 0 |
+| ORD-002 | 80000079356 | 2024-03-20 | 2024-03-18 | SELL | MSFT | XNAS | 5 | SHARES | 415.00 | USD | 2075.00 | 1.99 | 0 | 2073.01 | 0 | 0 | 0 | 0 |
 
 ### Mutual Fund (THB)
 
-| order_no | date | side | symbol | market | qty | qty_unit | price | currency | gross_usd | fee_usd | wht_usd | net_usd | gross_thb | fee_thb | wht_thb | net_thb |
-|----------|------|------|--------|--------|-----|----------|-------|----------|-----------|---------|---------|---------|-----------|---------|---------|---------|
-| MF-003 | 2024-04-01 | SUBSCRIB | KMASTER | MUTUALFUND | 1000 | UNITS | 10.50 | THB | 0 | 0 | 0 | 0 | 10500.00 | 0 | 0 | 10500.00 |
+| order_no | account_no | settlement_date | effective_date | side | symbol | market | qty | qty_unit | price | currency | gross_usd | fee_usd | wht_usd | net_usd | gross_thb | fee_thb | wht_thb | net_thb |
+|----------|------------|-----------------|----------------|------|--------|--------|-----|----------|-------|----------|-----------|---------|---------|---------|-----------|---------|---------|---------|
+| MF-003 | 101686963578743 | 2024-04-01 | 2024-04-01 | SUBSCRIB | KMASTER | MUTUALFUND | 1000 | UNITS | 10.50 | THB | 0 | 0 | 0 | 0 | 10500.00 | 0 | 0 | 10500.00 |
 
 ### Gold (USD)
 
-| order_no | date | side | symbol | market | qty | qty_unit | price | currency | gross_usd | fee_usd | wht_usd | net_usd | gross_thb | fee_thb | wht_thb | net_thb |
-|----------|------|------|--------|--------|-----|----------|-------|----------|-----------|---------|---------|---------|-----------|---------|---------|---------|
-| GLD-004 | 2024-05-10 | BUY | GOLD | YLGGOLD | 1 | OZ | 2320.00 | USD | 2320.00 | 5.00 | 0 | 2325.00 | 0 | 0 | 0 | 0 |
+| order_no | account_no | settlement_date | effective_date | side | symbol | market | qty | qty_unit | price | currency | gross_usd | fee_usd | wht_usd | net_usd | gross_thb | fee_thb | wht_thb | net_thb |
+|----------|------------|-----------------|----------------|------|--------|--------|-----|----------|-------|----------|-----------|---------|---------|---------|-----------|---------|---------|---------|
+| GLD-004 | 80000079356 | 2024-05-10 | 2024-05-10 | BUY | GOLD | YLGGOLD | 1 | OZ | 2320.00 | USD | 2320.00 | 5.00 | 0 | 2325.00 | 0 | 0 | 0 | 0 |

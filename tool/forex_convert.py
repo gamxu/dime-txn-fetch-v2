@@ -74,7 +74,7 @@ def forex_convert(df: pd.DataFrame) -> pd.DataFrame:
         print("  No rows need forex conversion.")
         return df
 
-    all_dates = pd.to_datetime(df.loc[affected, "date"], format="%d/%m/%Y")
+    all_dates = pd.to_datetime(df.loc[affected, "settlement_date"], format="%d/%m/%Y")
     print(
         f"  Fetching USD/THB rates for {affected.sum()} row(s) "
         f"across {all_dates.nunique()} unique date(s)..."
@@ -87,7 +87,7 @@ def forex_convert(df: pd.DataFrame) -> pd.DataFrame:
 
     converted = 0
     for i in df[affected].index:
-        dt = pd.to_datetime(df.at[i, "date"], format="%d/%m/%Y")
+        dt = pd.to_datetime(df.at[i, "settlement_date"], format="%d/%m/%Y")
         rate = _rate_for_date(series, dt)
         if rate is None:
             print(f"  Warning: no rate available for {df.at[i, 'date']} — skipping row.")
@@ -119,7 +119,7 @@ def run(csv_path: Path = DEFAULT_CSV, dry_run: bool = False) -> pd.DataFrame:
             (df_out[_USD_FIELDS + _THB_FIELDS] != df[_USD_FIELDS + _THB_FIELDS]).any(axis=1)
         ]
         print(f"\n[dry-run] Would update {len(changed)} row(s):")
-        cols = ["date", "market", "symbol"] + _USD_FIELDS + _THB_FIELDS
+        cols = ["settlement_date", "market", "symbol"] + _USD_FIELDS + _THB_FIELDS
         print(df_out.loc[changed, cols].to_string(index=False))
         return df_out
 
