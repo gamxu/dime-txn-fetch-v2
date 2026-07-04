@@ -41,9 +41,16 @@ def upload_to_supabase(df: pd.DataFrame) -> None:
     df = df.copy()
     df.drop(columns=["source"], errors="ignore", inplace=True)
     # Convert DD/MM/YYYY -> YYYY-MM-DD for proper SQL date type
-    df["settlement_date"] = pd.to_datetime(df["settlement_date"], format="%d/%m/%Y").dt.strftime("%Y-%m-%d")
+    df["settlement_date"] = pd.to_datetime(df["settlement_date"], format="%d/%m/%Y", errors="coerce").dt.strftime("%Y-%m-%d")
     if "effective_date" in df.columns:
-        df["effective_date"] = pd.to_datetime(df["effective_date"], format="%d/%m/%Y").dt.strftime("%Y-%m-%d")
+        df["effective_date"] = pd.to_datetime(df["effective_date"], format="%d/%m/%Y", errors="coerce").dt.strftime("%Y-%m-%d")
+
+    # settlement_date is NOT NULL in Supabase -- drop rows where the source PDF/email
+    # gave us an unparsable date instead of letting the upsert fail on the constraint
+    bad_date = df["settlement_date"].isna()
+    if bad_date.any():
+        print(f"  Warning: dropping {bad_date.sum()} row(s) with unparsable settlement_date.")
+        df = df[~bad_date]
 
     # NaN -> None so Supabase stores SQL NULL instead of the string "nan"
     records = df.where(pd.notna(df), None).to_dict(orient="records")

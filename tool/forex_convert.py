@@ -74,23 +74,33 @@ def forex_convert(df: pd.DataFrame) -> pd.DataFrame:
         print("  No rows need forex conversion.")
         return df
 
-    all_dates = pd.to_datetime(df.loc[affected, "settlement_date"], format="%d/%m/%Y")
+    all_dates = pd.to_datetime(df.loc[affected, "settlement_date"], format="%d/%m/%Y", errors="coerce")
+    valid_dates = all_dates.dropna()
+    if valid_dates.empty:
+        print("  Warning: no valid settlement dates on forex rows — skipping conversion.")
+        return df
+
     print(
         f"  Fetching USD/THB rates for {affected.sum()} row(s) "
-        f"across {all_dates.nunique()} unique date(s)..."
+        f"across {valid_dates.nunique()} unique date(s)..."
     )
 
-    series = _fetch_rate_series(all_dates.min(), all_dates.max())
+    try:
+        series = _fetch_rate_series(valid_dates.min(), valid_dates.max())
+    except Exception as e:
+        print(f"  Warning: forex rate fetch failed ({e}) — skipping conversion.")
+        return df
+
     if series.empty:
         print("  Warning: could not fetch USD/THB rates — skipping conversion.")
         return df
 
     converted = 0
     for i in df[affected].index:
-        dt = pd.to_datetime(df.at[i, "settlement_date"], format="%d/%m/%Y")
-        rate = _rate_for_date(series, dt)
+        dt = pd.to_datetime(df.at[i, "settlement_date"], format="%d/%m/%Y", errors="coerce")
+        rate = _rate_for_date(series, dt) if pd.notna(dt) else None
         if rate is None:
-            print(f"  Warning: no rate available for {df.at[i, 'date']} — skipping row.")
+            print(f"  Warning: no rate available for {df.at[i, 'settlement_date']} — skipping row.")
             continue
 
         if needs_usd.loc[i]:

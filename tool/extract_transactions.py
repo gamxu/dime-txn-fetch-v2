@@ -173,10 +173,14 @@ def extract_all() -> pd.DataFrame:
 
     all_rows: list[dict] = []
     for pdf_path in tqdm(pdfs, desc="Parsing PDFs", unit="file"):
-        if "DIMEMF" in pdf_path.name:
-            found = parse_mutual_fund_pdf(pdf_path)
-        else:
-            found = parse_pdf(pdf_path)
+        try:
+            if "DIMEMF" in pdf_path.name:
+                found = parse_mutual_fund_pdf(pdf_path)
+            else:
+                found = parse_pdf(pdf_path)
+        except Exception as exc:
+            tqdm.write(f"  ERROR {pdf_path.name}: {exc}")
+            continue
         tqdm.write(f"  {pdf_path.name}: {len(found)} rows")
         all_rows.extend(found)
 
