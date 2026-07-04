@@ -21,6 +21,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from tqdm import tqdm
 
+from imap_retry import with_imap_retry
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
@@ -97,29 +99,31 @@ def list_subjects() -> None:
 
 
 def fetch_pdfs(since_date: date | None = None) -> list[Path]:
-    saved: list[Path] = []
-
     search = SENDER_FILTER
     if since_date:
         search = f'(FROM "dime.co.th" SINCE "{since_date.strftime("%d-%b-%Y")}")'
 
-    with imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT) as imap:
-        imap.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        imap.select("INBOX", readonly=True)
-        _, data = imap.search(None, search)
-        msg_ids = data[0].split()
-        print(f"Found {len(msg_ids)} emails from dime.co.th")
+    def _run() -> list[Path]:
+        saved: list[Path] = []
+        with imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT) as imap:
+            imap.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+            imap.select("INBOX", readonly=True)
+            _, data = imap.search(None, search)
+            msg_ids = data[0].split()
+            print(f"Found {len(msg_ids)} emails from dime.co.th")
 
-        for mid in tqdm(msg_ids, desc="Scanning headers", unit="email"):
-            _, hdr_data = imap.fetch(mid, "(BODY[HEADER.FIELDS (SUBJECT DATE)])")
-            hdr_msg = email.message_from_bytes(hdr_data[0][1])
-            subject = _decode_subject(hdr_msg.get("Subject", ""))
-            if CONFIRMATION_KEYWORD not in subject:
-                continue
-            _, raw = imap.fetch(mid, "(RFC822)")
-            msg = email.message_from_bytes(raw[0][1])
-            saved.extend(_save_pdf_parts(msg, _date_prefix(msg)))
+            for mid in tqdm(msg_ids, desc="Scanning headers", unit="email"):
+                _, hdr_data = imap.fetch(mid, "(BODY[HEADER.FIELDS (SUBJECT DATE)])")
+                hdr_msg = email.message_from_bytes(hdr_data[0][1])
+                subject = _decode_subject(hdr_msg.get("Subject", ""))
+                if CONFIRMATION_KEYWORD not in subject:
+                    continue
+                _, raw = imap.fetch(mid, "(RFC822)")
+                msg = email.message_from_bytes(raw[0][1])
+                saved.extend(_save_pdf_parts(msg, _date_prefix(msg)))
+        return saved
 
+    saved = with_imap_retry(_run)
     print(f"\nTotal new PDFs downloaded: {len(saved)}")
     return saved
 

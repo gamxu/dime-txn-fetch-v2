@@ -25,6 +25,8 @@ from dotenv import load_dotenv
 import os
 from tqdm import tqdm
 
+from imap_retry import with_imap_retry
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
@@ -227,22 +229,25 @@ def fetch_gold_transactions(since_date: date | None = None) -> pd.DataFrame:
     gmail_user = os.environ["GMAIL_USER"]
     gmail_pass = os.environ["GMAIL_APP_PASSWORD"]
 
-    all_rows: list[dict] = []
-    with imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT) as imap:
-        imap.login(gmail_user, gmail_pass)
-        imap.select("INBOX", readonly=True)
+    def _run() -> list[dict]:
+        all_rows: list[dict] = []
+        with imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT) as imap:
+            imap.login(gmail_user, gmail_pass)
+            imap.select("INBOX", readonly=True)
 
-        all_rows.extend(_fetch_from_sender(
-            imap, _YLG_SENDER, _parse_ylg, "YLG Gold",
-            subject_filter=lambda s: "[ YLG GOLD ]" in s and "DIME" in s,
-            since_date=since_date,
-        ))
-        all_rows.extend(_fetch_from_sender(
-            imap, _MTS_SENDER, _parse_mts, "MTS Gold",
-            subject_filter=lambda s: "[MTS Gold]" in s and ("สั่งซื้อ" in s or "สั่งขาย" in s),
-            since_date=since_date,
-        ))
+            all_rows.extend(_fetch_from_sender(
+                imap, _YLG_SENDER, _parse_ylg, "YLG Gold",
+                subject_filter=lambda s: "[ YLG GOLD ]" in s and "DIME" in s,
+                since_date=since_date,
+            ))
+            all_rows.extend(_fetch_from_sender(
+                imap, _MTS_SENDER, _parse_mts, "MTS Gold",
+                subject_filter=lambda s: "[MTS Gold]" in s and ("สั่งซื้อ" in s or "สั่งขาย" in s),
+                since_date=since_date,
+            ))
+        return all_rows
 
+    all_rows = with_imap_retry(_run)
     df = pd.DataFrame(all_rows) if all_rows else pd.DataFrame()
     print(f"Gold transactions fetched: {len(df)}")
     return df

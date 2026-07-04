@@ -8,6 +8,7 @@ Usage:
 """
 
 import sys
+import time
 from datetime import date, timedelta
 from pathlib import Path
 import pandas as pd
@@ -109,4 +110,14 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    ATTEMPTS = 3
+    DELAY_SECONDS = 60
+    for attempt in range(1, ATTEMPTS + 1):
+        try:
+            main()
+            break
+        except Exception as e:
+            if attempt == ATTEMPTS:
+                raise
+            print(f"\nRun failed ({e}) — retry {attempt}/{ATTEMPTS - 1} in {DELAY_SECONDS}s\n")
+            time.sleep(DELAY_SECONDS)
